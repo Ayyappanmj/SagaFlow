@@ -1,10 +1,12 @@
 """Smoke test against the running stack: places a happy-path and a shipping-failure order, prints final states."""
 import json
+import os
 import time
 import urllib.request
 import uuid
 
-BASE = "http://localhost:8000/api/v1"
+PORT = os.getenv("API_PORT", "8080")
+BASE = f"http://127.0.0.1:{PORT}/api/v1"
 
 
 def call(method, path, body=None, headers=None):

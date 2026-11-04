@@ -12,6 +12,7 @@ from __future__ import annotations
 import multiprocessing as mp
 import os
 import signal
+import socket
 import sys
 import time
 import urllib.request
@@ -19,6 +20,22 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 BACKEND = ROOT / "backend"
+
+
+def get_api_port() -> int:
+    env_port = os.getenv("API_PORT")
+    if env_port:
+        return int(env_port)
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            s.bind(("127.0.0.1", 8000))
+            return 8000
+        except OSError:
+            print("[PORT INFO] Port 8000 in use by another app; using port 8080 for SagaFlow API Gateway.")
+            return 8080
+
+
+API_PORT = get_api_port()
 
 
 def run_uvicorn(app_target: str, port: int, is_factory: bool):
@@ -40,7 +57,7 @@ SERVICES = [
     ("payment", "payment_service.main:app", 8002, False),
     ("shipping", "shipping_service.main:app", 8003, False),
     ("orchestrator", "orchestrator.main:app", 8010, False),
-    ("api", "api.app:get_app", 8000, True),
+    ("api", "api.app:get_app", API_PORT, True),
 ]
 
 
@@ -103,7 +120,7 @@ def main():
 
     try:
         while True:
-            time.sleep(1)
+            time.sleep(2)
             for name, target, port, factory in SERVICES:
                 p = procs.get(name)
                 if p and not p.is_alive():
@@ -113,7 +130,10 @@ def main():
                     procs[name] = new_p
                     wait_healthy(port)
                     print(f"Service {name} restarted (pid {new_p.pid})")
-    except KeyboardInterrupt:
+    except BaseException as e:
+        if not isinstance(e, (KeyboardInterrupt, SystemExit)):
+            import traceback
+            traceback.print_exc()
         cleanup()
 
 
