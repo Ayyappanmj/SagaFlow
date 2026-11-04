@@ -104,10 +104,15 @@ def main():
     try:
         while True:
             time.sleep(1)
-            for name, p in procs.items():
-                if not p.is_alive():
-                    print(f"Service {name} exited with code {p.exitcode}")
-                    cleanup()
+            for name, target, port, factory in SERVICES:
+                p = procs.get(name)
+                if p and not p.is_alive():
+                    print(f"Service {name} exited with code {p.exitcode}; restarting on port {port}...")
+                    new_p = mp.Process(target=run_uvicorn, args=(target, port, factory), daemon=True)
+                    new_p.start()
+                    procs[name] = new_p
+                    wait_healthy(port)
+                    print(f"Service {name} restarted (pid {new_p.pid})")
     except KeyboardInterrupt:
         cleanup()
 
