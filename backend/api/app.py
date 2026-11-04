@@ -198,7 +198,8 @@ def create_app(settings: Settings | None = None, db: Database | None = None, bro
                 out[name] = {"up": True, "ready": r.status_code == 200, "checks": r.json().get("checks")}
             except Exception:  # noqa: BLE001
                 out[name] = {"up": False, "ready": False, "checks": None}
-        out["api"] = {"up": True, "ready": db.ping() and broker.ping(), "checks": {"database": db.ping(), "broker": broker.ping()}}
+        ready = db.ping() and broker.ping()
+        out["api"] = {"up": True, "ready": ready, "checks": {"database": db.ping(), "broker": broker.ping()}}
         return out
 
     return app

@@ -13,8 +13,7 @@ from shared.outbox import enqueue
 from shared.retry import RetryPolicy
 from shared.timeutil import Clock, add_seconds, iso
 
-from .state_machine import (IN_FLIGHT, TERMINAL, ConcurrentModification, SagaState, order_status_for,
-                            validate_transition)
+from .state_machine import IN_FLIGHT, TERMINAL, ConcurrentModification, SagaState, order_status_for, validate_transition
 from .workflow import BY_NAME, STEPS, compensation_plan
 
 logger = logging.getLogger("orchestrator")
@@ -238,7 +237,8 @@ class SagaEngine:
             return self._begin_comp(tx, saga, step, self.policy.delay(st["comp_attempts"]))
         # compensation failed: NEVER mark COMPENSATED; keep everything needed for recovery
         self._update_step(tx, saga["id"], step, compensation_status="FAILED", last_error=err)
-        self._event(tx, saga, "COMPENSATION_FAILED", "COMPENSATING", "REQUIRES_ATTENTION", step, st["comp_attempts"], err, "FAILED")
+        self._event(tx, saga, "COMPENSATION_FAILED", "COMPENSATING", "REQUIRES_ATTENTION",
+                    step, st["comp_attempts"], err, "FAILED")
         self._save(tx, saga, S.REQUIRES_ATTENTION, error_code="COMPENSATION_FAILED", error_detail=err)
         METRICS.inc("sagaflow_compensation_failures_total", "Compensation failures", step=step)
         METRICS.inc("sagaflow_saga_requires_attention_total", "Sagas needing an operator")
@@ -261,9 +261,11 @@ class SagaEngine:
                 self._save(tx, saga, simulate_json="{}")
             comp = next((s for s in steps.values() if s["compensation_status"] == "FAILED"), None)
             if comp:
-                self._update_step(tx, saga_id, comp["step_name"], comp_max_attempts=comp["comp_attempts"] + self.policy.max_attempts)
+                self._update_step(tx, saga_id, comp["step_name"],
+                                  comp_max_attempts=comp["comp_attempts"] + self.policy.max_attempts)
                 self._save(tx, saga, S.COMPENSATING, error_code=None, error_detail=None)
-                self._event(tx, saga, "MANUAL_RETRY", "REQUIRES_ATTENTION", "COMPENSATING", comp["step_name"], comp["comp_attempts"] + 1, comp="DISPATCHED")
+                self._event(tx, saga, "MANUAL_RETRY", "REQUIRES_ATTENTION", "COMPENSATING",
+                            comp["step_name"], comp["comp_attempts"] + 1, comp="DISPATCHED")
                 self._begin_comp(tx, saga, comp["step_name"])
             else:
                 unk = next((s for s in steps.values() if s["status"] == "UNKNOWN"), None)

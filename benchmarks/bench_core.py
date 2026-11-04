@@ -37,7 +37,8 @@ lat = []
 t0 = time.perf_counter()
 for i in range(N):
     t = time.perf_counter()
-    create_order(dbs["orchestrator"], eng, {"customer_ref": "b", "items": [{"sku": "WIDGET", "quantity": 1, "unit_price_cents": 100}]}, f"bench-{i:06d}", "c")
+    req = {"customer_ref": "b", "items": [{"sku": "WIDGET", "quantity": 1, "unit_price_cents": 100}]}
+    create_order(dbs["orchestrator"], eng, req, f"bench-{i:06d}", "c")
     lat.append((time.perf_counter() - t) * 1000)
 t_create = time.perf_counter() - t0
 t1 = time.perf_counter()
@@ -55,8 +56,16 @@ t_run = time.perf_counter() - t1
 with dbs["orchestrator"].read() as tx:
     done = tx.one("SELECT COUNT(*) AS n FROM sagas WHERE state='COMPLETED'")["n"]
 lat.sort()
-q = lambda p: lat[min(len(lat) - 1, int(len(lat) * p))]
+
+
+def q(p):
+    return lat[min(len(lat) - 1, int(len(lat) * p))]
+
+
 print(f"machine: {platform.platform()} python {platform.python_version()} cpus-bound-single-thread")
 print(f"workload: {N} orders, 3-step saga, SQLite (WAL) + in-memory broker, single thread")
 print(f"order creation latency ms: p50={q(.5):.2f} p95={q(.95):.2f} p99={q(.99):.2f} mean={statistics.mean(lat):.2f}")
-print(f"saga completion: {done}/{N} completed in {t_run:.2f}s => {done / t_run:.1f} sagas/s; messages processed {msgs} => {msgs / t_run:.0f} msg/s")
+print(
+    f"saga completion: {done}/{N} completed in {t_run:.2f}s => {done / t_run:.1f} sagas/s; "
+    f"messages processed {msgs} => {msgs / t_run:.0f} msg/s"
+)

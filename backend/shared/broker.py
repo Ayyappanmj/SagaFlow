@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import threading
 from collections import defaultdict, deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 QUEUES = ["inventory.commands", "payment.commands", "shipping.commands", "orchestrator.replies"]
 

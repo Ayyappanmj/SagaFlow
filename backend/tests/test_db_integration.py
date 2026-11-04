@@ -1,7 +1,6 @@
 import threading
 import unittest
 
-from orchestrator.engine import SagaEngine
 from orchestrator.state_machine import ConcurrentModification
 from shared.db import IntegrityError
 from shared.messages import Envelope
@@ -19,7 +18,7 @@ class ConcurrentInventoryTests(unittest.TestCase):
     def test_no_overselling_under_concurrency(self):
         env = Env({"WIDGET": 5})
         self.addCleanup(env.cleanup)
-        results, errors = [], []
+        errors = []
 
         def worker(i):
             try:
@@ -63,7 +62,7 @@ class TransactionTests(SagaTestCase):
         self.assertEqual(env.rows("orchestrator", "SELECT * FROM outbox_events"), [])
 
     def test_order_creation_writes_state_and_outbox_atomically(self):
-        resp, created = env_order = self.env.order(key="k-atomic")
+        resp, created = self.env.order(key="k-atomic")
         self.assertTrue(created)
         ob = self.env.rows("orchestrator", "SELECT destination, status FROM outbox_events")
         self.assertEqual([(r["destination"], r["status"]) for r in ob], [("inventory.commands", "PENDING")])
@@ -72,7 +71,10 @@ class TransactionTests(SagaTestCase):
         self.env.order(key="k-1")
         with self.assertRaises(IntegrityError):
             with self.env.dbs["orchestrator"].transaction() as tx:
-                tx.execute("INSERT INTO idempotency_records(key, request_hash, response_json, created_at) VALUES ('k-1','h','{}','t')")
+                tx.execute(
+                    "INSERT INTO idempotency_records(key, request_hash, response_json, created_at)"
+                    " VALUES ('k-1','h','{}','t')"
+                )
         with self.assertRaises(IntegrityError):  # inventory can never go negative
             with self.env.dbs["inventory"].transaction() as tx:
                 tx.execute("UPDATE inventory SET available=-1 WHERE sku='WIDGET'")

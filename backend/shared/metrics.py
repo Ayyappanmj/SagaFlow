@@ -46,8 +46,8 @@ class Registry:
             for name, series in self.hist.items():
                 out += [f"# HELP {name} {self.help.get(name, '')}", f"# TYPE {name} histogram"]
                 for k, (counts, total, n) in series.items():
-                    for b, c in zip(self.buckets, counts):
-                        out.append(name + "_bucket" + self._l(k, 'le="%s"' % b) + " " + str(c))
+                    for b, c in zip(self.buckets, counts, strict=True):
+                        out.append(name + "_bucket" + self._l(k, f'le="{b}"') + " " + str(c))
                     out.append(name + "_bucket" + self._l(k, 'le="+Inf"') + " " + str(n))
                     out.append(f"{name}_sum{self._l(k)} {total}")
                     out.append(f"{name}_count{self._l(k)} {n}")

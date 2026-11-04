@@ -35,7 +35,8 @@ class InventoryService(CommandService):
                            " VALUES (?,?,?,'RESERVED',?,?)", (rid, saga_id, p["order_id"], now, now))
                 for it in items:
                     n = tx.execute("UPDATE inventory SET available=available-?, reserved=reserved+?, updated_at=?"
-                                   " WHERE sku=? AND available>=?", (it["quantity"], it["quantity"], now, it["sku"], it["quantity"]))
+                                   " WHERE sku=? AND available>=?",
+                                   (it["quantity"], it["quantity"], now, it["sku"], it["quantity"]))
                     if n == 0:
                         raise _Insufficient(it["sku"])
                     tx.execute("INSERT INTO reservation_items(reservation_id, sku, quantity) VALUES (?,?,?)",

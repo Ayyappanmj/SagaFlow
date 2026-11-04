@@ -25,7 +25,8 @@ class ApiTests(unittest.TestCase):
 
     def test_validation_and_missing_resources(self):
         with self.make() as c:
-            self.assertEqual(c.post("/api/v1/orders", json={"customer_ref": "", "items": []}, headers={"Idempotency-Key": "k" * 8}).status_code, 422)
+            r = c.post("/api/v1/orders", json={"customer_ref": "", "items": []}, headers={"Idempotency-Key": "k" * 8})
+            self.assertEqual(r.status_code, 422)
             self.assertEqual(c.get("/api/v1/orders/nope").status_code, 404)
             self.assertEqual(c.get("/api/v1/sagas/nope").status_code, 404)
             self.assertEqual(c.get("/api/v1/sagas?limit=1000").status_code, 422)
@@ -45,9 +46,16 @@ class ApiTests(unittest.TestCase):
     def test_admin_and_dev_protection(self):
         with self.make(env="production", dev=True, token="s3cret") as c:  # dev endpoints invisible in production
             self.assertEqual(c.post("/api/v1/dev/failure-scenarios", json={"simulate": {}}).status_code, 404)
-            r = c.post("/api/v1/orders", json={**self.body, "simulate": {"payment_decline": True}}, headers={"Idempotency-Key": "idem-77777"}).json()
+            r = c.post(
+                "/api/v1/orders",
+                json={**self.body, "simulate": {"payment_decline": True}},
+                headers={"Idempotency-Key": "idem-77777"},
+            ).json()
             self.assertEqual(c.post(f"/api/v1/sagas/{r['saga_id']}/recover").status_code, 401)
-            self.assertEqual(c.post(f"/api/v1/sagas/{r['saga_id']}/recover", headers={"X-Admin-Token": "s3cret"}).status_code, 409)
+            self.assertEqual(
+                c.post(f"/api/v1/sagas/{r['saga_id']}/recover", headers={"X-Admin-Token": "s3cret"}).status_code,
+                409,
+            )
 
     def test_health_ready_metrics(self):
         with self.make() as c:

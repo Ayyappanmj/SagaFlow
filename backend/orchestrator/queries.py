@@ -46,7 +46,9 @@ def get_saga(db: Database, saga_id: str) -> dict | None:
         s.pop("simulate_json", None)  # dev-only detail, not exposed
         s["steps"] = tx.all("SELECT step_name, status, compensation_status, attempts, max_attempts, comp_attempts,"
                             " last_error, updated_at FROM saga_steps WHERE saga_id=? ORDER BY ordinal", (saga_id,))
-        s["pending_outbox"] = tx.one("SELECT COUNT(*) AS n FROM outbox_events WHERE saga_id=? AND status='PENDING'", (saga_id,))["n"]
+        s["pending_outbox"] = tx.one(
+            "SELECT COUNT(*) AS n FROM outbox_events WHERE saga_id=? AND status='PENDING'", (saga_id,)
+        )["n"]
         return s
 
 
@@ -64,7 +66,9 @@ def stats(db: Database) -> dict:
         orders = tx.one("SELECT COUNT(*) AS n FROM orders")["n"]
         retries = tx.one("SELECT COALESCE(SUM(retry_count),0) AS n FROM sagas")["n"]
         pending = tx.one("SELECT COUNT(*) AS n FROM outbox_events WHERE status='PENDING'")["n"]
-        done = tx.all("SELECT created_at, completed_at FROM sagas WHERE completed_at IS NOT NULL ORDER BY completed_at DESC LIMIT 500")
+        done = tx.all(
+            "SELECT created_at, completed_at FROM sagas WHERE completed_at IS NOT NULL ORDER BY completed_at DESC LIMIT 500"
+        )
     from shared.timeutil import parse
     durs = [(parse(r["completed_at"]) - parse(r["created_at"])).total_seconds() for r in done]
     return {"total_orders": orders, "sagas_by_state": by_state, "total_retries": retries,

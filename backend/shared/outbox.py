@@ -7,8 +7,6 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime
-
 
 from .broker import BrokerUnavailable
 from .db import Database, Tx
@@ -60,7 +58,8 @@ class OutboxPublisher:
             except BrokerUnavailable as e:
                 with self.db.transaction() as tx:
                     tx.execute("UPDATE outbox_events SET attempts=attempts+1, last_error=?, available_at=?"
-                               " WHERE id=?", (str(e)[:200], iso(add_seconds(now, self.policy.delay(r["attempts"] + 1))), r["id"]))
+                               " WHERE id=?",
+                               (str(e)[:200], iso(add_seconds(now, self.policy.delay(r["attempts"] + 1))), r["id"]))
                 METRICS.inc("sagaflow_outbox_publish_failures_total", "Outbox publish failures", service=self.service)
                 break  # broker is down: stop this batch, retry next tick (preserves ordering)
             with self.db.transaction() as tx:  # crash before this line => duplicate publish later

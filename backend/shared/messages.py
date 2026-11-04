@@ -35,7 +35,7 @@ class Envelope:
         return json.dumps(self.__dict__, sort_keys=True, separators=(",", ":"))
 
     @staticmethod
-    def from_json(raw: str | bytes) -> "Envelope":
+    def from_json(raw: str | bytes) -> Envelope:
         try:
             d = json.loads(raw)
         except (ValueError, TypeError) as e:

@@ -1,6 +1,9 @@
-"""Load test against the running Docker stack:  locust -f benchmarks/locustfile.py --host http://localhost:8000
-Headless example: locust -f benchmarks/locustfile.py --host http://localhost:8000 -u 20 -r 5 -t 60s --headless --csv benchmarks/results/run
-(Seed enough stock first: the default seed has 50 WIDGET; orders beyond that FAIL with INSUFFICIENT_STOCK, which is a valid outcome.)"""
+"""Load test against the running Docker stack:
+    locust -f benchmarks/locustfile.py --host http://localhost:8000
+Headless example:
+    locust -f benchmarks/locustfile.py --host http://localhost:8000 -u 20 -r 5 -t 60s --headless --csv benchmarks/results/run
+(Seed enough stock first: the default seed has 50 WIDGET;
+orders beyond that FAIL with INSUFFICIENT_STOCK, which is a valid outcome.)"""
 import uuid
 
 from locust import HttpUser, between, task

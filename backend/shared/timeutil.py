@@ -1,22 +1,22 @@
 """UTC time helpers. All timestamps are stored as ISO-8601 UTC strings (sortable as text)."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 FMT = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 
 def iso(dt: datetime) -> str:
-    return dt.astimezone(timezone.utc).strftime(FMT)
+    return dt.astimezone(UTC).strftime(FMT)
 
 
 def parse(s: str) -> datetime:
-    return datetime.strptime(s, FMT).replace(tzinfo=timezone.utc)
+    return datetime.strptime(s, FMT).replace(tzinfo=UTC)
 
 
 class Clock:
     def now(self) -> datetime:
-        return datetime.now(timezone.utc)
+        return datetime.now(UTC)
 
     def now_iso(self) -> str:
         return iso(self.now())
@@ -26,7 +26,7 @@ class FakeClock(Clock):
     """Deterministic clock for tests (retry backoff, stale detection)."""
 
     def __init__(self, start: datetime | None = None):
-        self._now = start or datetime(2026, 1, 1, tzinfo=timezone.utc)
+        self._now = start or datetime(2026, 1, 1, tzinfo=UTC)
 
     def now(self) -> datetime:
         return self._now

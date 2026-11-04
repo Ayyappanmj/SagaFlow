@@ -1,6 +1,7 @@
 import unittest
 
-from orchestrator.state_machine import (InvalidTransition, SagaState as S, TERMINAL, TRANSITIONS, validate_transition)
+from orchestrator.state_machine import TERMINAL, TRANSITIONS, InvalidTransition, validate_transition
+from orchestrator.state_machine import SagaState as S
 from orchestrator.workflow import compensation_plan
 from shared.messages import Envelope, SchemaError
 from shared.retry import RetryPolicy, is_retryable_code
@@ -35,7 +36,10 @@ class CompensationRuleTests(unittest.TestCase):
         self.assertEqual(plan, ["RESERVE_INVENTORY"])
 
     def test_unknown_outcome_not_compensated_blindly(self):
-        self.assertEqual(compensation_plan({"RESERVE_INVENTORY": "COMPLETED", "PROCESS_PAYMENT": "UNKNOWN"}), ["RESERVE_INVENTORY"])
+        self.assertEqual(
+            compensation_plan({"RESERVE_INVENTORY": "COMPLETED", "PROCESS_PAYMENT": "UNKNOWN"}),
+            ["RESERVE_INVENTORY"],
+        )
 
 
 class RetryTests(unittest.TestCase):
@@ -69,7 +73,11 @@ class SchemaTests(unittest.TestCase):
         for bad in ["not json", json.dumps([1]), json.dumps(self.good(version=2)), json.dumps(self.good(type="x.y")),
                     json.dumps({k: v for k, v in self.good().items() if k != "saga_id"}),
                     json.dumps(self.good(payload={"order_id": "o"})),
-                    json.dumps(self.good(type="inventory.reserve", payload={"order_id": "o", "step": "s", "action": "forward", "attempt": 1, "items": [{"sku": "A", "quantity": 0}]}))]:
+                    json.dumps(self.good(
+                        type="inventory.reserve",
+                        payload={"order_id": "o", "step": "s", "action": "forward", "attempt": 1,
+                                 "items": [{"sku": "A", "quantity": 0}]},
+                    ))]:
             with self.assertRaises(SchemaError):
                 Envelope.from_json(bad)
 

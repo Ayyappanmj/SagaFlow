@@ -1,10 +1,10 @@
 """Pure saga state machine: which transitions are legal. No I/O here."""
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 
-class SagaState(str, Enum):
+class SagaState(StrEnum):
     PENDING = "PENDING"
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"

@@ -5,14 +5,15 @@ import contextvars
 import json
 import logging
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-ctx: contextvars.ContextVar[dict] = contextvars.ContextVar("log_ctx", default={})
+ctx: contextvars.ContextVar[dict | None] = contextvars.ContextVar("log_ctx", default=None)
 SENSITIVE = ("password", "token", "secret", "card")
 
 
 def bind(**kw) -> None:
-    ctx.set({**ctx.get(), **kw})
+    current = ctx.get() or {}
+    ctx.set({**current, **kw})
 
 
 class JsonFormatter(logging.Formatter):
@@ -21,8 +22,8 @@ class JsonFormatter(logging.Formatter):
         self.service = service
 
     def format(self, record: logging.LogRecord) -> str:
-        data = {"timestamp": datetime.now(timezone.utc).isoformat(), "level": record.levelname,
-                "service": self.service, "message": record.getMessage(), **ctx.get(),
+        data = {"timestamp": datetime.now(UTC).isoformat(), "level": record.levelname,
+                "service": self.service, "message": record.getMessage(), **(ctx.get() or {}),
                 **{k: v for k, v in getattr(record, "extra_fields", {}).items()
                    if not any(s in k.lower() for s in SENSITIVE)}}
         if record.exc_info:

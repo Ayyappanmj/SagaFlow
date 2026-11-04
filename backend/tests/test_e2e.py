@@ -15,7 +15,10 @@ class HappyPathTests(SagaTestCase):
         self.assertEqual(s["state"], "COMPLETED")
         self.assertEqual([x["status"] for x in s["steps"]], ["COMPLETED"] * 3)
         self.assertEqual(self.env.stock(), {"available": 8, "reserved": 2})
-        self.assertEqual(self.env.rows("payment", "SELECT status, amount_cents FROM payments"), [{"status": "AUTHORIZED", "amount_cents": 2000}])
+        self.assertEqual(
+            self.env.rows("payment", "SELECT status, amount_cents FROM payments"),
+            [{"status": "AUTHORIZED", "amount_cents": 2000}],
+        )
         self.assertEqual(self.env.rows("shipping", "SELECT status FROM shipments")[0]["status"], "CREATED")
         self.assertEqual(self.env.rows("orchestrator", "SELECT status FROM orders")[0]["status"], "COMPLETED")
         ev = self.env.events(r["saga_id"])
@@ -220,6 +223,7 @@ class CrashRecoveryTests(SagaTestCase):
         self.env.pump()
         before = self.env.events(r["saga_id"])
         import json
+
         from shared.messages import Envelope
         late = Envelope(type="saga.reply", saga_id=r["saga_id"], correlation_id="c", idempotency_key="k",
                         payload={"service": "payment", "step": "PROCESS_PAYMENT", "action": "forward", "status": "FAILED",

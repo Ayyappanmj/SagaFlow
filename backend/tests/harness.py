@@ -1,7 +1,6 @@
 """Test harness: real SQL schemas (SQLite files), in-memory broker, deterministic FakeClock."""
 from __future__ import annotations
 
-import json
 import shutil
 import tempfile
 import unittest

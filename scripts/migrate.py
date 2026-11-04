@@ -8,5 +8,11 @@ from shared.db import Database  # noqa: E402
 from shared.migrate import apply_migrations  # noqa: E402
 
 s = Settings()
-for name, url in (("orchestrator", s.orchestrator_db), ("inventory", s.inventory_db), ("payment", s.payment_db), ("shipping", s.shipping_db)):
+services = (
+    ("orchestrator", s.orchestrator_db),
+    ("inventory", s.inventory_db),
+    ("payment", s.payment_db),
+    ("shipping", s.shipping_db),
+)
+for name, url in services:
     print(name, apply_migrations(Database(url), name) or "up to date")

@@ -32,7 +32,8 @@ class OutboxRelayTests(SagaTestCase):
         pub = self.env.runtime.publisher
         orig = pub.db.transaction
         # publish succeeds, but the 'mark published' transaction fails => at-least-once duplicate
-        pub.broker.publish("inventory.commands", self.env.rows("orchestrator", "SELECT body FROM outbox_events")[0]["body"].encode(), {})
+        body = self.env.rows("orchestrator", "SELECT body FROM outbox_events")[0]["body"].encode()
+        pub.broker.publish("inventory.commands", body, {})
         self.env.pump()  # relay publishes the same row again
         self.assertEqual(self.env.broker.published_count >= 2, True)
         self.assertEqual(len(self.env.rows("inventory", "SELECT * FROM inventory_reservations")), 1)
@@ -70,8 +71,10 @@ class ConsumerTests(SagaTestCase):
     def test_non_retryable_goes_straight_to_dlq(self):
         def bad(e):
             raise NonRetryableError("nope")
-        env_json = json.dumps({"message_id": "m", "type": "payment.void", "version": 1, "saga_id": "s", "correlation_id": "c",
-                               "idempotency_key": "k", "payload": {"order_id": "o", "step": "x", "action": "compensate", "attempt": 1}})
+        env_json = json.dumps({
+            "message_id": "m", "type": "payment.void", "version": 1, "saga_id": "s", "correlation_id": "c",
+            "idempotency_key": "k", "payload": {"order_id": "o", "step": "x", "action": "compensate", "attempt": 1},
+        })
         c = Consumer(self.env.broker, "payment.commands", bad)
         self.env.broker.publish("payment.commands", env_json.encode(), {})
         c.poll_once()
