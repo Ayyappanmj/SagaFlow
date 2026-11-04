@@ -189,15 +189,26 @@ def create_app(settings: Settings | None = None, db: Database | None = None, bro
         return proxy("shipping", s.shipping_url, "/api/v1/shipments")
 
     @app.get("/api/v1/system-health")
-    def system_health():
-        out = {}
-        for name, url in (("inventory", s.inventory_url), ("payment", s.payment_url), ("shipping", s.shipping_url),
-                          ("orchestrator", s.orchestrator_url)):
+    async def system_health():
+        import asyncio
+
+        services = (
+            ("inventory", s.inventory_url),
+            ("payment", s.payment_url),
+            ("shipping", s.shipping_url),
+            ("orchestrator", s.orchestrator_url),
+        )
+
+        async def check(name: str, url: str):
             try:
-                r = httpx.get(f"{url}/api/v1/ready", timeout=2)
-                out[name] = {"up": True, "ready": r.status_code == 200, "checks": r.json().get("checks")}
+                async with httpx.AsyncClient(timeout=2) as client:
+                    r = await client.get(f"{url}/api/v1/ready")
+                    return name, {"up": True, "ready": r.status_code == 200, "checks": r.json().get("checks")}
             except Exception:  # noqa: BLE001
-                out[name] = {"up": False, "ready": False, "checks": None}
+                return name, {"up": False, "ready": False, "checks": None}
+
+        results = await asyncio.gather(*(check(name, url) for name, url in services))
+        out = dict(results)
         ready = db.ping() and broker.ping()
         out["api"] = {"up": True, "ready": ready, "checks": {"database": db.ping(), "broker": broker.ping()}}
         return out

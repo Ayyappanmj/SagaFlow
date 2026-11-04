@@ -4,6 +4,12 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 
 def _b(name: str, default: str = "false") -> bool:
     return os.getenv(name, default).lower() in ("1", "true", "yes")
@@ -25,10 +31,10 @@ class Settings:
     admin_token: str = field(default_factory=lambda: os.getenv("ADMIN_TOKEN", ""))
     enable_dev_endpoints: bool = field(default_factory=lambda: _b("ENABLE_DEV_ENDPOINTS"))
     payment_limit_cents: int = field(default_factory=lambda: int(os.getenv("PAYMENT_LIMIT_CENTS", "100000")))
-    inventory_url: str = field(default_factory=lambda: os.getenv("INVENTORY_URL", "http://localhost:8001"))
-    payment_url: str = field(default_factory=lambda: os.getenv("PAYMENT_URL", "http://localhost:8002"))
-    orchestrator_url: str = field(default_factory=lambda: os.getenv("ORCHESTRATOR_URL", "http://localhost:8010"))
-    shipping_url: str = field(default_factory=lambda: os.getenv("SHIPPING_URL", "http://localhost:8003"))
+    inventory_url: str = field(default_factory=lambda: os.getenv("INVENTORY_URL", "http://127.0.0.1:8001"))
+    payment_url: str = field(default_factory=lambda: os.getenv("PAYMENT_URL", "http://127.0.0.1:8002"))
+    orchestrator_url: str = field(default_factory=lambda: os.getenv("ORCHESTRATOR_URL", "http://127.0.0.1:8010"))
+    shipping_url: str = field(default_factory=lambda: os.getenv("SHIPPING_URL", "http://127.0.0.1:8003"))
 
     @property
     def dev_mode(self) -> bool:

@@ -77,6 +77,8 @@ class Database:
                 raise RuntimeError("psycopg is required for PostgreSQL URLs")
             return psycopg.connect(self.url, autocommit=True, row_factory=dict_row)
         path = self.url.replace("sqlite:///", "", 1)
+        from pathlib import Path
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(path, timeout=60, isolation_level=None, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys=ON")
