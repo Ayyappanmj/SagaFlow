@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 5s
+scrape_configs:
+  - job_name: sagaflow
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["api:8000", "orchestrator:8010", "inventory:8001", "payment:8002", "shipping:8003"]

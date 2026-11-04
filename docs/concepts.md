@@ -1,0 +1,11 @@
+# Concepts for beginners
+- **Saga:** a long business transaction split into local transactions, each with an "undo" action. If step 3 fails, run the undo of step 2, then step 1.
+- **Why distributed transactions are hard:** each service has its own database; there is no single COMMIT covering all of them, and any call or message can be lost, delayed or duplicated.
+- **Eventual consistency:** for a short time the system may be in between states (stock reserved, order not yet complete); it converges to a consistent outcome.
+- **RabbitMQ:** a broker holding durable queues. Producers publish; consumers receive a message and must *acknowledge* it; unacknowledged messages are redelivered if the consumer dies.
+- **Outbox record:** "I must tell RabbitMQ about this" saved in the same DB transaction as the change. A relay publishes it afterwards, so we never have a committed change with no message (or a message about a rolled-back change).
+- **Duplicates happen:** the relay can crash after publishing but before marking the row; the consumer can crash after committing but before acking. Delivery is **at-least-once**.
+- **Idempotency:** doing an operation twice has the same effect as once. Achieved with unique keys + stored results.
+- **Compensation:** a new business action that undoes a previous one (void payment), because the old commit can't be rolled back.
+- **Preventing overselling:** the single SQL statement `UPDATE … WHERE available >= qty` is atomic; the database makes competing updates take turns, and the loser sees 0 rows updated.
+- **Crash recovery:** all progress lives in PostgreSQL. After a restart the orchestrator finds sagas with no recent progress and re-sends their current command; idempotent services make that safe.

@@ -1,0 +1,4 @@
+machine: Linux-6.18.44-fc-v230-x86_64-with-glibc2.39 python 3.12.3 cpus-bound-single-thread
+workload: 300 orders, 3-step saga, SQLite (WAL) + in-memory broker, single thread
+order creation latency ms: p50=1.23 p95=2.14 p99=3.56 mean=1.36
+saga completion: 300/300 completed in 2.28s => 131.6 sagas/s; messages processed 1800 => 790 msg/s

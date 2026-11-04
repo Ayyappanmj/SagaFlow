@@ -1,0 +1,13 @@
+.env
+.venv/
+node_modules/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+dist/
+data/
+*.db
+*.db-wal
+*.db-shm
+*.log
+benchmarks/results/*.csv
