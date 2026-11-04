@@ -65,17 +65,24 @@ def main():
     ]:
         apply_migrations(Database(db_url), name)
 
-    procs: list[tuple[str, subprocess.Popen]] = []
+    logs_dir = data_dir / "logs"
+    logs_dir.mkdir(exist_ok=True)
+
+    procs: dict[str, subprocess.Popen] = {}
     py = sys.executable
     env = os.environ.copy()
     env["PYTHONPATH"] = str(BACKEND)
 
-    for name, app_target, port, extra_args in SERVICES:
+    def spawn(name, app_target, port, extra_args):
         cmd = [py, "-m", "uvicorn", app_target, "--host", "127.0.0.1", "--port", str(port)]
         if extra_args:
             cmd.extend(extra_args)
-        p = subprocess.Popen(cmd, env=env, cwd=ROOT)
-        procs.append((name, p))
+        log_f = open(logs_dir / f"{name}.log", "a", encoding="utf-8")
+        return subprocess.Popen(cmd, env=env, cwd=ROOT, stdout=log_f, stderr=subprocess.STDOUT)
+
+    for name, app_target, port, extra_args in SERVICES:
+        p = spawn(name, app_target, port, extra_args)
+        procs[name] = p
         ok = wait_healthy(port, name)
         status = "HEALTHY" if ok else "FAILED"
         print(f"[{status}] {name} on http://127.0.0.1:{port}")
@@ -84,9 +91,9 @@ def main():
 
     def cleanup(signum=None, frame=None):
         print("\nStopping services...")
-        for _name, p in procs:
+        for _name, p in procs.items():
             p.terminate()
-        for _name, p in procs:
+        for _name, p in procs.items():
             try:
                 p.wait(timeout=3)
             except Exception:
@@ -97,13 +104,23 @@ def main():
     signal.signal(signal.SIGINT, cleanup)
     signal.signal(signal.SIGTERM, cleanup)
 
+    svc_map = {name: (app_target, port, extra_args) for name, app_target, port, extra_args in SERVICES}
+
     try:
         while True:
             time.sleep(1)
-            for name, p in procs:
+            for name, p in list(procs.items()):
                 if p.poll() is not None:
-                    print(f"Service {name} exited unexpectedly with code {p.returncode}")
-                    cleanup()
+                    print(f"Service {name} exited with code {p.returncode}; reading log:")
+                    log_path = logs_dir / f"{name}.log"
+                    if log_path.exists():
+                        lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()[-20:]
+                        print("\n".join(lines))
+                    app_target, port, extra_args = svc_map[name]
+                    print(f"Restarting {name}...")
+                    new_p = spawn(name, app_target, port, extra_args)
+                    procs[name] = new_p
+                    wait_healthy(port, name)
     except KeyboardInterrupt:
         cleanup()
 
