@@ -17,7 +17,8 @@ class Settings:
     payment_db: str = field(default_factory=lambda: os.getenv("PAYMENT_DB_URL", "sqlite:///./data/payment.db"))
     shipping_db: str = field(default_factory=lambda: os.getenv("SHIPPING_DB_URL", "sqlite:///./data/shipping.db"))
     rabbitmq_url: str = field(default_factory=lambda: os.getenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"))
-    broker: str = field(default_factory=lambda: os.getenv("BROKER", "rabbitmq"))  # rabbitmq | memory
+    broker_db: str = field(default_factory=lambda: os.getenv("BROKER_DB_URL", "sqlite:///./data/broker.db"))
+    broker: str = field(default_factory=lambda: os.getenv("BROKER", "rabbitmq"))  # rabbitmq | memory | sqlite
     max_attempts: int = field(default_factory=lambda: int(os.getenv("RETRY_MAX_ATTEMPTS", "3")))
     retry_base_delay_s: float = field(default_factory=lambda: float(os.getenv("RETRY_BASE_DELAY_S", "1")))
     stale_after_s: float = field(default_factory=lambda: float(os.getenv("STALE_AFTER_S", "60")))

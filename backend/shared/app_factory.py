@@ -9,8 +9,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
 
-from .broker import InMemoryBroker, RabbitMQBroker
+from .broker import InMemoryBroker, RabbitMQBroker, SQLiteBroker
 from .config import Settings
+from .db import Database
 from .logging_setup import bind, setup_logging
 from .metrics import METRICS
 
@@ -18,7 +19,11 @@ MAX_BODY = 64 * 1024
 
 
 def build_broker(s: Settings):
-    return InMemoryBroker() if s.broker == "memory" else RabbitMQBroker(s.rabbitmq_url)
+    if s.broker == "memory":
+        return InMemoryBroker()
+    if s.broker == "sqlite":
+        return SQLiteBroker(Database(s.broker_db))
+    return RabbitMQBroker(s.rabbitmq_url)
 
 
 def error_body(code: str, message: str, request_id: str = "") -> dict:

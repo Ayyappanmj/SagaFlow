@@ -98,5 +98,47 @@ class BrokerAvailabilityTests(SagaTestCase):
             self.env.broker.publish("x", b"1")
 
 
+class SQLiteBrokerTests(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+
+        from shared.broker import SQLiteBroker
+        from shared.db import Database
+        self.d = tempfile.mkdtemp()
+        self.db = Database(f"sqlite:///{self.d}/b.db")
+        self.broker = SQLiteBroker(self.db, retry_delay_s=0.0)
+
+    def test_publish_get_ack(self):
+        self.broker.publish("test.q", b'{"msg": 1}', {"x-attempt": 1})
+        self.assertEqual(self.broker.depth("test.q"), 1)
+        d = self.broker.get("test.q")
+        self.assertIsNotNone(d)
+        self.assertEqual(d.body, b'{"msg": 1}')
+        self.assertEqual(d.attempt, 1)
+        self.broker.ack(d)
+        self.assertEqual(self.broker.depth("test.q"), 0)
+        self.assertIsNone(self.broker.get("test.q"))
+
+    def test_retry_and_requeue(self):
+        self.broker.publish("test.q", b"payload", {"x-attempt": 1})
+        d = self.broker.get("test.q")
+        self.broker.retry(d)
+        d2 = self.broker.get("test.q")
+        self.assertIsNotNone(d2)
+        self.assertEqual(d2.attempt, 2)
+        self.assertEqual(self.broker.requeue_unacked(), 1)
+        self.assertEqual(self.broker.depth("test.q"), 1)
+
+    def test_dead_letter(self):
+        self.broker.publish("test.q", b"poison", {})
+        d = self.broker.get("test.q")
+        self.broker.dead_letter(d, "bad payload")
+        self.assertEqual(self.broker.depth("test.q"), 0)
+        dlq = self.broker.dlq_messages()
+        self.assertEqual(len(dlq), 1)
+        self.assertEqual(dlq[0]["reason"], "bad payload")
+        self.assertTrue(self.broker.ping())
+
+
 if __name__ == "__main__":
     unittest.main()

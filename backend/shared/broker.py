@@ -5,9 +5,11 @@ for both brokers. Topology per queue Q: Q, Q.retry (TTL -> back to Q), Q.dlq (de
 """
 from __future__ import annotations
 
+import json
 import threading
 from collections import defaultdict, deque
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 QUEUES = ["inventory.commands", "payment.commands", "shipping.commands", "orchestrator.replies"]
 
@@ -98,6 +100,120 @@ class InMemoryBroker:
 
     def ping(self) -> bool:
         return self.available
+
+
+class SQLiteBroker:
+    """Persistent, process-safe broker backed by an SQLite database for running without Docker."""
+
+    def __init__(self, db, retry_delay_s: float = 1.0):
+        self.db = db
+        self.retry_delay_s = retry_delay_s
+        self.declare_topology()
+
+    def declare_topology(self) -> None:
+        with self.db.transaction() as tx:
+            tx.conn.execute("""
+                CREATE TABLE IF NOT EXISTS broker_messages (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    queue TEXT NOT NULL,
+                    body BLOB NOT NULL,
+                    headers_json TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    available_at TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                )
+            """)
+            tx.conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_broker_fetch
+                ON broker_messages (queue, status, available_at, id)
+            """)
+            tx.conn.execute("""
+                CREATE TABLE IF NOT EXISTS broker_dlq (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    queue TEXT NOT NULL,
+                    body BLOB NOT NULL,
+                    reason TEXT,
+                    headers_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                )
+            """)
+
+    def publish(self, queue: str, body: bytes, headers: dict | None = None) -> None:
+        from shared.timeutil import iso
+        now = iso(datetime.now(UTC))
+        h_json = json.dumps(dict(headers or {}))
+        payload = body if isinstance(body, bytes) else str(body).encode()
+        with self.db.transaction() as tx:
+            tx.execute(
+                "INSERT INTO broker_messages (queue, body, headers_json, status, available_at, created_at) "
+                "VALUES (?, ?, ?, 'READY', ?, ?)",
+                (queue, payload, h_json, now, now),
+            )
+
+    def get(self, queue: str) -> Delivery | None:
+        from shared.timeutil import iso
+        now = iso(datetime.now(UTC))
+        with self.db.transaction() as tx:
+            row = tx.one(
+                "SELECT id, body, headers_json FROM broker_messages "
+                "WHERE queue=? AND status='READY' AND available_at<=? ORDER BY id LIMIT 1",
+                (queue, now),
+            )
+            if not row:
+                return None
+            tx.execute("UPDATE broker_messages SET status='UNACKED' WHERE id=?", (row["id"],))
+            raw_body = row["body"]
+            body_bytes = raw_body if isinstance(raw_body, bytes) else str(raw_body).encode()
+            headers = json.loads(row["headers_json"])
+            return Delivery(queue, body_bytes, headers, tag=row["id"])
+
+    def ack(self, d: Delivery) -> None:
+        with self.db.transaction() as tx:
+            tx.execute("DELETE FROM broker_messages WHERE id=?", (d.tag,))
+
+    def retry(self, d: Delivery) -> None:
+        from shared.timeutil import add_seconds, iso
+        now = datetime.now(UTC)
+        avail = iso(add_seconds(now, self.retry_delay_s))
+        headers = {**d.headers, "x-attempt": d.attempt + 1}
+        with self.db.transaction() as tx:
+            tx.execute(
+                "UPDATE broker_messages SET status='READY', headers_json=?, available_at=? WHERE id=?",
+                (json.dumps(headers), avail, d.tag),
+            )
+
+    def dead_letter(self, d: Delivery, reason: str) -> None:
+        from shared.timeutil import iso
+        now = iso(datetime.now(UTC))
+        headers = {**d.headers, "x-death-reason": reason}
+        with self.db.transaction() as tx:
+            tx.execute("DELETE FROM broker_messages WHERE id=?", (d.tag,))
+            tx.execute(
+                "INSERT INTO broker_dlq (queue, body, reason, headers_json, created_at) VALUES (?, ?, ?, ?, ?)",
+                (d.queue, d.body, reason, json.dumps(headers), now),
+            )
+
+    def requeue_unacked(self) -> int:
+        with self.db.transaction() as tx:
+            return tx.execute("UPDATE broker_messages SET status='READY' WHERE status='UNACKED'")
+
+    def depth(self, queue: str) -> int:
+        with self.db.read() as tx:
+            r = tx.one("SELECT COUNT(*) AS n FROM broker_messages WHERE queue=? AND status='READY'", (queue,))
+            return r["n"] if r else 0
+
+    def dlq_messages(self, limit: int = 50) -> list[dict]:
+        with self.db.read() as tx:
+            rows = tx.all("SELECT queue, body, reason FROM broker_dlq ORDER BY id DESC LIMIT ?", (limit,))
+            out = []
+            for r in rows:
+                raw = r["body"]
+                b = raw if isinstance(raw, bytes) else str(raw).encode()
+                out.append({"queue": r["queue"], "body": b.decode(errors="replace"), "reason": r.get("reason")})
+            return out
+
+    def ping(self) -> bool:
+        return self.db.ping()
 
 
 class RabbitMQBroker:  # pragma: no cover - requires a live RabbitMQ (not executed in the build sandbox)
