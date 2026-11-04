@@ -135,11 +135,13 @@ def create_app(settings: Settings | None = None, db: Database | None = None, bro
     @app.post("/api/v1/sagas/{saga_id}/recover", dependencies=[Depends(admin)])
     def recover(saga_id: str):
         try:
-            engine.recover(saga_id)
+            ok = engine.recover(saga_id)
         except SagaNotFound as e:
             raise HTTPException(404, "saga not found") from e
         except NotEligible as e:
             raise HTTPException(409, str(e)) from e
+        if not ok:
+            raise HTTPException(409, "no in-flight operation eligible for recovery")
         return queries.get_saga(db, saga_id)
 
     @app.post("/api/v1/dev/failure-scenarios")
