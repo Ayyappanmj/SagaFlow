@@ -16,6 +16,51 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: cp .env.example .env && docker compose config -q
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: sagaflow
+          POSTGRES_PASSWORD: sagaflow_dev_only
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      rabbitmq:
+        image: rabbitmq:3.13-management-alpine
+        env:
+          RABBITMQ_DEFAULT_USER: sagaflow
+          RABBITMQ_DEFAULT_PASS: sagaflow_dev_only
+        ports:
+          - 5672:5672
+          - 15672:15672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11", cache: pip }
+      - run: pip install -r backend/requirements-dev.txt
+      - name: Initialize PostgreSQL databases
+        run: |
+          PGPASSWORD=sagaflow_dev_only psql -h localhost -U sagaflow -d postgres -f infrastructure/postgres-init.sql
+      - name: Run Integration Tests (Real PostgreSQL + RabbitMQ)
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_USER: sagaflow
+          POSTGRES_PASSWORD: sagaflow_dev_only
+          RABBITMQ_URL: amqp://sagaflow:sagaflow_dev_only@localhost:5672/
+        run: python -m pytest backend/tests/integration -v
   frontend:
     runs-on: ubuntu-latest
     steps:
