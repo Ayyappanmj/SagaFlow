@@ -7,10 +7,12 @@ from __future__ import annotations
 import threading
 import unittest
 import uuid
+from datetime import UTC, datetime
 
 from inventory_service.service import InventoryService
 from shared.db import Database
 from shared.messages import Envelope
+from shared.timeutil import iso
 from tests.integration.infra import HAVE_PG, init_pg_service, pg_url
 
 
@@ -36,15 +38,23 @@ class PostgresRowLockConcurrencyTests(unittest.TestCase):
     def setUp(self):
         self.db = init_pg_service("inventory")
         self.sku = f"LOCK_TEST_{uuid.uuid4().hex[:8]}"
+        now_str = iso(datetime.now(UTC))
         with self.db.transaction() as tx:
             tx.execute("DELETE FROM outbox_events WHERE destination='orchestrator.replies'")
             tx.execute(
-                "INSERT INTO inventory(sku, available, reserved, updated_at) VALUES (?, 5, 0, NOW())",
-                (self.sku,),
+                "INSERT INTO inventory(sku, available, reserved, updated_at) VALUES (?, 5, 0, ?)",
+                (self.sku, now_str),
             )
 
     def tearDown(self):
         with self.db.transaction() as tx:
+            res_ids = [
+                r["reservation_id"]
+                for r in tx.all("SELECT reservation_id FROM reservation_items WHERE sku=?", (self.sku,))
+            ]
+            tx.execute("DELETE FROM reservation_items WHERE sku=?", (self.sku,))
+            for rid in res_ids:
+                tx.execute("DELETE FROM inventory_reservations WHERE id=?", (rid,))
             tx.execute("DELETE FROM inventory WHERE sku=?", (self.sku,))
 
     def test_8_concurrent_reservations_of_4_against_5_stock(self):

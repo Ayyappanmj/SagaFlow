@@ -1,4 +1,5 @@
 import os
+
 from PIL import Image, ImageDraw, ImageFont
 
 FRAMES_DIR = os.path.join(os.path.dirname(__file__), "../docs/images/demo_frames")

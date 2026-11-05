@@ -98,6 +98,13 @@ class InMemoryBroker:
                 out.append({"queue": q, "body": body.decode(), "reason": headers.get("x-death-reason")})
         return out[:limit]
 
+    def purge(self, queue: str) -> int:
+        with self._lock:
+            n = len(self.queues[queue])
+            self.queues[queue].clear()
+            self.dlq[queue].clear()
+            return n
+
     def ping(self) -> bool:
         return self.available
 
@@ -212,6 +219,12 @@ class SQLiteBroker:
                 out.append({"queue": r["queue"], "body": b.decode(errors="replace"), "reason": r.get("reason")})
             return out
 
+    def purge(self, queue: str) -> int:
+        with self.db.transaction() as tx:
+            n = tx.execute("DELETE FROM broker_messages WHERE queue=?", (queue,))
+            n += tx.execute("DELETE FROM broker_dlq WHERE queue=?", (queue,))
+            return n
+
     def ping(self) -> bool:
         return self.db.ping()
 
@@ -309,6 +322,12 @@ class RabbitMQBroker:  # pragma: no cover - requires a live RabbitMQ (not execut
                     ch.basic_nack(m.delivery_tag, requeue=True)
         self._wrap(go)
         return out[:limit]
+
+    def purge(self, queue: str) -> int:
+        def go(ch):
+            res = ch.queue_purge(queue)
+            return res.method.message_count
+        return self._wrap(go)
 
     def ping(self):
         try:

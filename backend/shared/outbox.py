@@ -18,8 +18,9 @@ from .timeutil import Clock, add_seconds, iso
 logger = logging.getLogger("outbox")
 
 
-def enqueue(tx: Tx, env: Envelope, destination: str, clock: Clock,
+def enqueue(tx: Tx, env: Envelope, destination: str, clock: Clock | None = None,
             delay_s: float = 0.0, copies: int = 1) -> str:
+    clock = clock or Clock()
     now = clock.now()
     env.occurred_at = iso(now)
     oid = str(uuid.uuid4())

@@ -10,11 +10,13 @@ from __future__ import annotations
 import json
 import unittest
 import uuid
+from datetime import UTC, datetime
 
-from shared.broker import RabbitMQBroker
+from shared.broker import QUEUES, RabbitMQBroker
 from shared.consumer import Consumer, NonRetryableError
 from shared.messages import Envelope
 from shared.outbox import OutboxPublisher, enqueue
+from shared.timeutil import iso
 from tests.integration.infra import HAVE_RMQ, RABBITMQ_URL, init_pg_service
 
 
@@ -24,6 +26,16 @@ class RabbitMQGuaranteeTests(unittest.TestCase):
         self.broker = RabbitMQBroker(RABBITMQ_URL)
         self.broker.declare_topology()
         self.queue_name = "payment.commands"
+        self._purge_queues()
+
+    def tearDown(self):
+        self._purge_queues()
+
+    def _purge_queues(self):
+        for q in QUEUES:
+            self.broker.purge(q)
+            self.broker.purge(q + ".dlq")
+            self.broker.purge(q + ".retry")
 
     def test_outbox_relay_publishes_with_confirms(self):
         db = init_pg_service("payment")
@@ -57,7 +69,10 @@ class RabbitMQGuaranteeTests(unittest.TestCase):
         self.broker.ack(delivery)
 
     def test_poison_message_lands_in_real_dlq(self):
-        poison_body = json.dumps({"corrupted": True, "saga_id": "poison-1"}).encode()
+        self.broker.purge(self.queue_name)
+        self.broker.purge(self.queue_name + ".dlq")
+        poison_id = f"poison-{uuid.uuid4().hex[:8]}"
+        poison_body = json.dumps({"corrupted": True, "saga_id": poison_id}).encode()
         self.broker.publish(self.queue_name, poison_body, {"x-attempt": 1})
 
         def fail_handler(_env: Envelope):
@@ -68,7 +83,7 @@ class RabbitMQGuaranteeTests(unittest.TestCase):
 
         # The poison message must have landed in .dlq
         dlq_msgs = self.broker.dlq_messages(limit=50)
-        found = any(d["queue"] == self.queue_name and "poison-1" in d["body"] for d in dlq_msgs)
+        found = any(d["queue"] == self.queue_name and poison_id in d["body"] for d in dlq_msgs)
         self.assertTrue(found, f"Poison message was not found in DLQ: {dlq_msgs}")
 
     def test_broker_downtime_keeps_events_pending_until_recovery(self):
@@ -98,9 +113,9 @@ class RabbitMQGuaranteeTests(unittest.TestCase):
 
         # Recover with live broker
         pub_live = OutboxPublisher(db, self.broker, service="shipping")
-        # Reset available_at to now for immediate retry
+        now_str = iso(datetime.now(UTC))
         with db.transaction() as tx:
-            tx.execute("UPDATE outbox_events SET available_at=NOW() WHERE id=?", (oid,))
+            tx.execute("UPDATE outbox_events SET available_at=? WHERE id=?", (now_str, oid))
 
         relayed_recovered = pub_live.relay_once()
         self.assertGreaterEqual(relayed_recovered, 1)

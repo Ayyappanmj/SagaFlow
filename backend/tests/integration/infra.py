@@ -2,12 +2,11 @@
 from __future__ import annotations
 
 import os
+import socket
 
 from shared.broker import RabbitMQBroker
 from shared.db import Database
 from shared.migrate import apply_migrations
-
-import socket
 
 PG_HOST = os.getenv("POSTGRES_HOST", "localhost")
 PG_PORT = os.getenv("POSTGRES_PORT", "5432")
