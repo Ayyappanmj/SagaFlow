@@ -1,6 +1,6 @@
 # SagaFlow — Distributed Transaction & Saga Orchestration Platform
 
-[![CI](https://github.com/sagaflow/sagaflow/actions/workflows/ci.yml/badge.svg)](https://github.com/sagaflow/sagaflow/actions/workflows/ci.yml)
+[![CI](https://github.com/Ayyappanmj/SagaFlow/actions/workflows/ci.yml/badge.svg)](https://github.com/Ayyappanmj/SagaFlow/actions/workflows/ci.yml)
 ![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)
 ![TypeScript](https://img.shields.io/badge/typescript-5.5-blue.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688.svg)
